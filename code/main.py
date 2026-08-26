@@ -103,10 +103,10 @@ class Game:
     def bullet_collision(self):
         if self.bullet_sprites:
             for bullet in self.bullet_sprites:
-                self.collision_sprites = pygame.sprite.spritecollide(bullet, self.enemy_sprites, False, pygame.sprite.collide_mask)
-                if self.collision_sprites:
+                hit_enemies = pygame.sprite.spritecollide(bullet, self.enemy_sprites, False, pygame.sprite.collide_mask)
+                if hit_enemies:
                     self.impact_sound.play()
-                    for sprite in self.collision_sprites:
+                    for sprite in hit_enemies:
                         sprite.destroy()
                     bullet.kill()                                  
 
