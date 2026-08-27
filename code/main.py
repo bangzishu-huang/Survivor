@@ -31,9 +31,6 @@ class Game:
         self.hit_time = 0
         self.hit_cooldown = 1000
         self.score = 0
-        self.high_score = 0
-        self.game_started = False
-        self.game_over = False
         self.overlay_alpha = 0
         self.overlay_speed = 300
         self.overlay_surf = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -43,6 +40,55 @@ class Game:
         self.score_font = pygame.font.Font(None, 42)
         self.game_over_font = pygame.font.Font(None, 90)
         self.game_describe = pygame.font.Font(None, 30)
+        self.difficulty = None
+        self.game_started = False
+        self.game_over = False
+        self.show_difficulty_select = False
+        self.play_button_scale = 1.0
+        self.replay_button_scale = 1.0
+        self.hit_sound = pygame.mixer.Sound(join('code', 'audio', 'hit.wav'))
+        self.hit_sound.set_volume(0.5)
+
+        self.high_score = {
+            'easy': 0,
+            'medium': 0,
+            'hard': 0
+        }
+
+        self.difficulty_settings = {
+            'easy': {
+                'bullet_speed': 900,
+                'enemy_speed': 250
+            },
+
+            'medium': {
+                'bullet_speed': 1100,
+                'enemy_speed': 350,
+            },
+
+            'hard': {
+                'bullet_speed': 1400,
+                'enemy_speed': 500
+            }
+        }
+
+        self.difficulty_color = {
+            'easy': (76, 187, 23),
+            'medium': (255, 140, 0),
+            'hard': (220, 20, 60)
+        }
+
+        self.difficulty_buttons = {
+            'easy': pygame.FRect(0, 0, 180, 65),
+            'medium': pygame.FRect(0, 0, 180, 65),
+            'hard': pygame.FRect(0, 0, 180, 65)
+        }
+
+        button_x = WINDOW_WIDTH / 2
+
+        self.difficulty_buttons['easy'].center = (button_x, WINDOW_HEIGHT / 2 - 100)
+        self.difficulty_buttons['medium'].center = (button_x, WINDOW_HEIGHT / 2)
+        self.difficulty_buttons['hard'].center = (button_x, WINDOW_HEIGHT / 2 + 100)
 
         self.play_button_rect = pygame.FRect(0, 0, 220, 70)
         self.play_button_rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 +60)
@@ -79,8 +125,7 @@ class Game:
         if pygame.mouse.get_pressed()[0] and self.can_shoot:
             self.shoot_sound.play()
             pos = self.gun.rect.center + self.gun.player_direction * 40
-            Bullet(self.bullet_surf, pos, self.gun.player_direction, (self.all_sprites, self.bullet_sprites))
-            print('shoot')
+            Bullet(self.bullet_surf, pos, self.gun.player_direction, self.difficulty_settings[self.difficulty]['bullet_speed'], (self.all_sprites, self.bullet_sprites))
             self.can_shoot = False
             self.shoot_time = pygame.time.get_ticks()
 
@@ -119,8 +164,8 @@ class Game:
                             sprite.destroy()
 
                             self.score += 1
-                            if self.score > self.high_score:
-                                self.high_score = self.score
+                            if self.score > self.high_score[self.difficulty]:
+                                self.high_score[self.difficulty] = self.score
                     bullet.kill()                                  
 
     def player_collision(self):
@@ -130,6 +175,7 @@ class Game:
         if pygame.sprite.spritecollide(self.player, self.enemy_sprites, False, pygame.sprite.collide_mask):
             self.hit_time = current_time
             self.lives -= 1
+            self.hit_sound.play()
             if self.lives <= 0:
                 self.trigger_game_over()
 
@@ -145,17 +191,52 @@ class Game:
         self.enemy_sprites.empty()
         self.spawn_positions = []
 
-        self.lives = self.max_lives
         self.score = 0
         self.hit_time = 0
         self.can_shoot = True
         self.shoot_time = 0
         self.game_over = False
-        self.game_started = True
+        self.game_started = False
+        self.show_difficulty_select = True
         self.overlay_alpha = 0
         self.replay_button_rect = None
 
         self.setup()
+
+    def draw_button(self, rect, text, button_type, color=None):
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = rect.collidepoint(mouse_pos)
+
+        target_scale = 1.08 if hovered else 1.0
+
+        if button_type == 'play':
+            current_scale = self.play_button_scale
+        else:
+            current_scale = self.replay_button_scale
+
+        current_scale += (target_scale - current_scale) * 0.2
+
+        if button_type == 'play':
+            self.play_button = current_scale
+        else:
+            self.replay_button = current_scale
+
+        button_rect = pygame.FRect(0, 0, rect.width * current_scale, rect.height * current_scale)
+        button_rect.center = rect.center
+
+        if color:
+            base = pygame.Color(*color)
+            button_color = base.lerp('white', 0.25) if hovered else base
+        else:
+            button_color = (210, 210, 210) if hovered else (255, 255, 255)
+
+        pygame.draw.rect(self.display_surface, button_color, button_rect, border_radius=10)
+        text_surf = self.button_font.render(text, True, 'black')
+        text_rect = text_surf.get_frect(center=button_rect.center)
+
+        self.display_surface.blit(text_surf, text_rect)
+
+        return button_rect
 
     def draw_heart(self):
         spacing = 10
@@ -170,10 +251,14 @@ class Game:
             self.display_surface.blit(surf, (x, y))
 
     def draw_score(self):
-        high_score_surf = self.score_font.render(f'HIGH SCORE: {self.high_score}', True, 'white')
-        high_score_rect = high_score_surf.get_frect(center = (WINDOW_WIDTH / 2, 35))
+        high_score = self.high_score[self.difficulty]
+        high_score_surf = self.score_font.render(f'HIGH SCORE: {high_score}', True, 'white')
+        high_score_rect = high_score_surf.get_frect(center = (WINDOW_WIDTH / 2, 60))
         score_surf = self.score_font.render(f'SCORE: {self.score}', True, 'white')
-        score_rect = score_surf.get_frect(center = (WINDOW_WIDTH / 2, 75))
+        score_rect = score_surf.get_frect(center = (WINDOW_WIDTH / 2, 90))
+        difficulty_surf = self.score_font.render(self.difficulty.upper(), True, self.difficulty_color[self.difficulty])
+        difficulty_rect = difficulty_surf.get_frect(center=(WINDOW_WIDTH / 2, 25))
+        self.display_surface.blit(difficulty_surf, difficulty_rect)
         self.display_surface.blit(high_score_surf, high_score_rect)
         self.display_surface.blit(score_surf, score_rect)
 
@@ -189,38 +274,62 @@ class Game:
         describe_rect = describe_surf.get_frect(center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 2))
         self.display_surface.blit(describe_surf, describe_rect)
 
-        pygame.draw.rect(self.display_surface, 'white', self.play_button_rect, border_radius=10)
-        play_text = self.button_font.render('PLAY', True, 'black')
-        play_text_rect = play_text.get_frect(center = self.play_button_rect.center)
-        self.display_surface.blit(play_text, play_text_rect)
+        self.draw_button(self.play_button_rect, 'PLAY', 'play')
 
     def draw_game_over(self, dt):
         self.overlay_alpha = min(255, self.overlay_alpha + self.overlay_speed * dt)
         self.overlay_surf.set_alpha(self.overlay_alpha)
         self.display_surface.blit(self.overlay_surf, (0, 0))
 
-        text_surf = self.game_over_font.render('GAME OVER', True, 'white')
+        text_surf = self.game_over_font.render('GAME OVER', True, 'red')
         text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 85))
         self.display_surface.blit(text_surf, text_rect)
 
         score_surf = self.score_font.render(f'SCORE: {self.score}', True, 'white')
-        score_rect = score_surf.get_frect(center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 5))
+        score_rect = score_surf.get_frect(center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 + 15))
         self.display_surface.blit(score_surf, score_rect)
 
-        high_score_surf = self.score_font.render(f'HIGH SCORE: {self.high_score}', True, 'white')
-        high_score_rect = high_score_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 35))
+        high_score_surf = self.score_font.render(f'HIGH SCORE: {self.high_score[self.difficulty]}', True, 'white')
+        high_score_rect = high_score_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 20))
         self.display_surface.blit(high_score_surf, high_score_rect)
 
         if self.overlay_alpha >= 255:
             self.replay_button_rect = pygame.FRect(0, 0, 220, 60)
-            self.replay_button_rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 + 60)
+            self.replay_button_rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 + 100)
             pygame.draw.rect(self.display_surface, 'white', self.replay_button_rect, border_radius=8)
 
-            replay_text = self.button_font.render('Play Again', True, 'black')
+            replay_text = self.button_font.render('PLAY AGAIN', True, 'black')
             replay_text_rect = replay_text.get_frect(center=self.replay_button_rect.center)
             self.display_surface.blit(replay_text, replay_text_rect)
         else:
             self.replay_button_rect = None
+
+    def start_game(self, difficulty):
+        self.difficulty = difficulty
+        self.score = 0
+
+        self.game_started = True
+        self.show_difficulty_select = False
+        self.game_over = False
+
+        self.lives = self.max_lives
+        self.hit_time = 0
+        self.can_shoot = True
+        self.shoot_time = 0 
+        self.overlay_alpha = 0
+        self.replay_button_rect = None
+
+    def draw_difficulty_select(self):
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        self.display_surface.blit(overlay, (0, 0))
+
+        title_surf = self.game_over_font.render('SELECT DIFFICULTY', True, 'white')
+        title_rect = title_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 180))
+        self.display_surface.blit(title_surf, title_rect)
+
+        for name, rect in self.difficulty_buttons.items():
+            self.draw_button(rect, name.upper(), name, self.difficulty_color[name])
 
     def run(self):
         while self.running:
@@ -230,12 +339,20 @@ class Game:
                     self.running = False
 
                 if self.game_started and not self.game_over and event.type == self.enemy_event:
-                    Enemy(choice(self.spawn_positions), choice(list(self.enemy_frames.values())), (self.all_sprites, self.enemy_sprites), self.player, self.collision_sprites)
+                    Enemy(choice(self.spawn_positions), choice(list(self.enemy_frames.values())), (self.all_sprites, self.enemy_sprites), self.player, self.collision_sprites, self.difficulty_settings[self.difficulty]['enemy_speed'])
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if not self.game_started:
+                    if not self.game_started and not self.show_difficulty_select:
                         if self.play_button_rect.collidepoint(event.pos):
-                            self.game_started = True
+                            self.show_difficulty_select = True
+                        
+                    elif self.show_difficulty_select:
+                        if self.difficulty_buttons['easy'].collidepoint(event.pos):
+                            self.start_game('easy')
+                        elif self.difficulty_buttons['medium'].collidepoint(event.pos):
+                            self.start_game('medium')
+                        elif self.difficulty_buttons['hard'].collidepoint(event.pos):
+                            self.start_game('hard')
 
                     elif self.game_over:
                         if self.game_over and self.replay_button_rect and self.replay_button_rect.collidepoint(event.pos):
@@ -255,8 +372,11 @@ class Game:
             if self.game_started:
                 self.draw_score()
 
-            if not self.game_started:
+            if not self.game_started and not self.show_difficulty_select:
                 self.draw_start()
+
+            if self.show_difficulty_select:
+                self.draw_difficulty_select()
 
             if self.game_over:
                 self.draw_game_over(dt)
@@ -271,4 +391,3 @@ class Game:
 if __name__ == '__main__':
     game = Game()
     game.run()
-

@@ -48,7 +48,7 @@ class Gun(pygame.sprite.Sprite):
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, surf, pos, direction, groups):
+    def __init__(self, surf, pos, direction, speed, groups):
         super().__init__(groups)
         self.image = surf
         self.rect = self.image.get_frect(center = pos)
@@ -56,7 +56,7 @@ class Bullet(pygame.sprite.Sprite):
         self.lifetime = 1000
 
         self.direction = direction
-        self.speed = 1100
+        self.speed = speed
 
     def update(self, dt):
         self.rect.center += self.direction * self.speed * dt
@@ -65,7 +65,7 @@ class Bullet(pygame.sprite.Sprite):
             self.kill()
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, pos, frames, groups, player, collision_sprites):
+    def __init__(self, pos, frames, groups, player, collision_sprites, speed):
         super().__init__(groups)
         self.player = player
 
@@ -77,7 +77,7 @@ class Enemy(pygame.sprite.Sprite):
         self.hitbox_rect = self.rect.inflate(-20, -40)
         self.collision_sprites = collision_sprites
         self.direction = pygame.Vector2()
-        self.speed = 350
+        self.speed = speed
         self.death_time = 0
         self.death_duration = 200
 
