@@ -44,10 +44,27 @@ class Game:
         self.game_started = False
         self.game_over = False
         self.show_difficulty_select = False
-        self.play_button_scale = 1.0
-        self.replay_button_scale = 1.0
         self.hit_sound = pygame.mixer.Sound(join('code', 'audio', 'hit.wav'))
-        self.hit_sound.set_volume(0.5)
+        self.hit_sound.set_volume(0.65)
+        self.hack_panel_open = False
+        self.esp_enabled = False
+        self.god_mode_enabled = False
+        self.hack_toggle_font = pygame.font.Font(None, 30)
+        self.hack_button_rect = pygame.FRect(0, 0, 180, 40)
+        self.hack_button_rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 + 190)
+        self.hack_panel_rect = pygame.FRect(WINDOW_WIDTH - 230, 20, 210, 200)
+        self.master_toggle_rect = pygame.FRect(WINDOW_WIDTH - 220, 60, 24, 24)
+        self.esp_toggle_rect = pygame.FRect(WINDOW_WIDTH - 220, 95, 24, 24)
+        self.god_toggle_rect = pygame.FRect(WINDOW_WIDTH - 220, 130, 24, 24)
+        self.extra_life_button_rect = pygame.FRect(WINDOW_WIDTH - 220, 165, 190, 30)
+
+        self.button_scales = {
+            'play': 1.0,
+            'replay': 1.0,
+            'easy': 1.0,
+            'medium': 1.0,
+            'hard': 1.0
+        }
 
         self.high_score = {
             'easy': 0,
@@ -70,6 +87,12 @@ class Game:
                 'bullet_speed': 1400,
                 'enemy_speed': 500
             }
+        }
+
+        self.difficulty_button_scales = {
+            'easy': 1.0,
+            'medium': 1.0,
+            'hard': 1.0
         }
 
         self.difficulty_color = {
@@ -168,7 +191,22 @@ class Game:
                                 self.high_score[self.difficulty] = self.score
                     bullet.kill()                                  
 
+    def draw_esp(self):
+        if not self.esp_enabled:
+            return
+
+        offset = self.all_sprites.offset
+        player_pos = pygame.Vector2(self.player.rect.center) + offset
+        for enemy in self.enemy_sprites:
+            if enemy.death_time != 0:
+                continue
+            enemy_pos = pygame.Vector2(enemy.rect.center) + offset
+            pygame.draw.line(self.display_surface, (255, 0, 0), player_pos, enemy_pos, 1)
+            pygame.draw.circle(self.display_surface, (255, 0, 0), enemy_pos, 22, 2)
+
     def player_collision(self):
+        if self.god_mode_enabled:
+            return
         current_time = pygame.time.get_ticks()
         if current_time - self.hit_time < self.hit_cooldown:
             return
@@ -203,40 +241,45 @@ class Game:
 
         self.setup()
 
-    def draw_button(self, rect, text, button_type, color=None):
+    def draw_button(self, rect, text, button_id):
         mouse_pos = pygame.mouse.get_pos()
-        hovered = rect.collidepoint(mouse_pos)
+        hovering = rect.collidepoint(mouse_pos)
 
-        target_scale = 1.08 if hovered else 1.0
+        current_scale = self.button_scales[button_id]
 
-        if button_type == 'play':
-            current_scale = self.play_button_scale
-        else:
-            current_scale = self.replay_button_scale
-
+        target_scale = 1.05 if hovering else 1.0
         current_scale += (target_scale - current_scale) * 0.2
+        self.button_scales[button_id] = current_scale
 
-        if button_type == 'play':
-            self.play_button = current_scale
-        else:
-            self.replay_button = current_scale
+        scaled_rect = rect.copy()
+        scaled_rect.width *= current_scale
+        scaled_rect.height *= current_scale
+        scaled_rect.center = rect.center
 
-        button_rect = pygame.FRect(0, 0, rect.width * current_scale, rect.height * current_scale)
-        button_rect.center = rect.center
+        button_color = (220, 220, 220) if hovering else (255, 255, 255)
 
-        if color:
-            base = pygame.Color(*color)
-            button_color = base.lerp('white', 0.25) if hovered else base
-        else:
-            button_color = (210, 210, 210) if hovered else (255, 255, 255)
+        pygame.draw.rect(self.display_surface, button_color, scaled_rect, border_radius=10)
 
-        pygame.draw.rect(self.display_surface, button_color, button_rect, border_radius=10)
         text_surf = self.button_font.render(text, True, 'black')
-        text_rect = text_surf.get_frect(center=button_rect.center)
+        text_rect = text_surf.get_frect(center=scaled_rect.center)
 
         self.display_surface.blit(text_surf, text_rect)
 
-        return button_rect
+    def draw_level_button(self, rect, text, level):
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = rect.collidepoint(mouse_pos)
+        base_color = self.difficulty_color[level]
+
+        if hovered:
+            color = tuple(int(c * 0.75) for c in base_color)
+        else: 
+            color = base_color
+
+        pygame.draw.rect(self.display_surface, color, rect, border_radius=10)
+
+        text_surf = self.button_font.render(text, True, 'white')
+        text_rect = text_surf.get_frect(center=rect.center)
+        self.display_surface.blit(text_surf, text_rect)
 
     def draw_heart(self):
         spacing = 10
@@ -304,6 +347,40 @@ class Game:
         else:
             self.replay_button_rect = None
 
+    def draw_hack_button(self):
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = self.hack_button_rect.collidepoint(mouse_pos)
+        color = (170, 170, 170) if hovered else (95, 95, 95)
+        text_surf = self.hack_toggle_font.render('HACK MODE', True, 'darkgray')
+        text_rect = text_surf.get_frect(center=self.hack_button_rect.center)
+        self.display_surface.blit(text_surf, text_rect)
+
+    def draw_toggle(self, rect, label, enabled):
+        color = (0, 200, 0) if enabled else (90, 90, 90)
+        pygame.draw.rect(self.display_surface, color, rect, border_radius=4)
+        label_surf = self.hack_toggle_font.render(label, True, 'white')
+        label_rect = label_surf.get_frect(midleft=(rect.right + 10, rect.centery))
+        self.display_surface.blit(label_surf, label_rect)
+
+    def draw_hack_panel(self):
+        if not self.hack_panel_open:
+            return
+
+        pygame.draw.rect(self.display_surface, (25, 25, 25), self.hack_panel_rect, border_radius=8)
+        pygame.draw.rect(self.display_surface, (90, 90, 90), self.hack_panel_rect, width=2, border_radius=8)
+
+        title_surf = self.hack_toggle_font.render('HACK MENU', True, 'white')
+        self.display_surface.blit(title_surf, (self.hack_panel_rect.x + 10, self.hack_panel_rect.y + 8))
+        any_active = self.esp_enabled or self.god_mode_enabled
+        self.draw_toggle(self.master_toggle_rect, 'TURN OFF ALL', not any_active)
+        self.draw_toggle(self.esp_toggle_rect, 'ESP', self.esp_enabled)
+        self.draw_toggle(self.god_toggle_rect, 'GOD MODE', self.god_mode_enabled)
+
+        pygame.draw.rect(self.display_surface, (255, 255, 255), self.extra_life_button_rect, border_radius=6)
+        life_text = self.hack_toggle_font.render('+1 LIFE', True, 'black')
+        life_rect = life_text.get_frect(center=self.extra_life_button_rect.center)
+        self.display_surface.blit(life_text, life_rect)
+
     def start_game(self, difficulty):
         self.difficulty = difficulty
         self.score = 0
@@ -329,7 +406,10 @@ class Game:
         self.display_surface.blit(title_surf, title_rect)
 
         for name, rect in self.difficulty_buttons.items():
-            self.draw_button(rect, name.upper(), name, self.difficulty_color[name])
+            self.draw_level_button(rect, name.upper(), name)
+
+
+        self.draw_hack_button()
 
     def run(self):
         while self.running:
@@ -342,6 +422,18 @@ class Game:
                     Enemy(choice(self.spawn_positions), choice(list(self.enemy_frames.values())), (self.all_sprites, self.enemy_sprites), self.player, self.collision_sprites, self.difficulty_settings[self.difficulty]['enemy_speed'])
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.hack_panel_open:
+                        if self.master_toggle_rect.collidepoint(event.pos):
+                            self.esp_enabled = False
+                            self.god_mode_enabled = False
+                        elif self.esp_toggle_rect.collidepoint(event.pos):
+                            self.esp_enabled = not self.esp_enabled
+                        elif self.god_toggle_rect.collidepoint(event.pos):
+                            self.god_mode_enabled = not self.god_mode_enabled
+                        elif self.extra_life_button_rect.collidepoint(event.pos):
+                            if self.game_started and not self.game_over:
+                                self.lives = min(self.lives + 1, self.max_lives)
+
                     if not self.game_started and not self.show_difficulty_select:
                         if self.play_button_rect.collidepoint(event.pos):
                             self.show_difficulty_select = True
@@ -353,6 +445,8 @@ class Game:
                             self.start_game('medium')
                         elif self.difficulty_buttons['hard'].collidepoint(event.pos):
                             self.start_game('hard')
+                        elif self.hack_button_rect.collidepoint(event.pos):
+                            self.hack_panel_open = not self.hack_panel_open
 
                     elif self.game_over:
                         if self.game_over and self.replay_button_rect and self.replay_button_rect.collidepoint(event.pos):
@@ -368,6 +462,7 @@ class Game:
             self.display_surface.fill('black')
             self.all_sprites.draw(self.player.rect.center)
             self.draw_heart()
+            self.draw_esp()
 
             if self.game_started:
                 self.draw_score()
@@ -380,6 +475,8 @@ class Game:
 
             if self.game_over:
                 self.draw_game_over(dt)
+
+            self.draw_hack_panel()
 
             pygame.display.update()
 
