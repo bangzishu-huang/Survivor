@@ -4,6 +4,7 @@ from sprites import *
 from pytmx.util_pygame import load_pygame
 from random import randint, choice
 from groups import AllSprites
+import asyncio
 
 class Game:
     def __init__(self):
@@ -411,7 +412,7 @@ class Game:
 
         self.draw_hack_button()
 
-    def run(self):
+    async def run(self):
         while self.running:
             dt = self.clock.tick() / 1000
             for event in pygame.event.get():
@@ -487,4 +488,4 @@ class Game:
 
 if __name__ == '__main__':
     game = Game()
-    game.run()
+    asyncio.run(game.run())
