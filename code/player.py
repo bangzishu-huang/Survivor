@@ -1,11 +1,13 @@
 from settings import *
+import sys
+BASE = "" if sys.platform == "emscripten" else "code"
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, groups, collision_sprites):
         super().__init__(groups)
         self.load_images()
         self.state, self.frame_index = 'right', 0
-        self.image = pygame.image.load(join('code', 'images', 'player', 'down', '0.png')).convert_alpha()
+        self.image = pygame.image.load(join(*[p for p in [BASE, 'images', 'player', 'down', '0.png'] if p])).convert_alpha()
         self.rect = self.image.get_frect(center = pos)
         self.hitbox_rect = self.rect.inflate(-60, -90)
 
@@ -18,7 +20,7 @@ class Player(pygame.sprite.Sprite):
         self.frames = {'left': [], 'right': [], 'up': [], 'down': []}
 
         for state in self.frames.keys():
-            for folder_path, sub_folder, file_names in walk(join('code', 'images', 'player', state)):
+            for folder_path, sub_folder, file_names in walk(join(*[p for p in [BASE, 'images', 'player', state] if p])):
                 if file_names:
                     for file_name in sorted(file_names, key= lambda name: int(name.split('.')[0])): 
                         full_path = join(folder_path, file_name)

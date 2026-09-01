@@ -1,3 +1,10 @@
+# /// script
+# dependencies = [
+#     "pygame-ce",
+#     "pytmx",
+# ]
+# ///
+
 from settings import *
 from player import Player
 from sprites import *
@@ -5,6 +12,9 @@ from pytmx.util_pygame import load_pygame
 from random import randint, choice
 from groups import AllSprites
 import asyncio
+import sys
+
+BASE = "" if sys.platform == "emscripten" else "code"
 
 class Game:
     def __init__(self):
@@ -45,7 +55,7 @@ class Game:
         self.game_started = False
         self.game_over = False
         self.show_difficulty_select = False
-        self.hit_sound = pygame.mixer.Sound(join('code', 'audio', 'hit.wav'))
+        self.hit_sound = pygame.mixer.Sound(join(*[p for p in [BASE, 'audio', 'hit.ogg'] if p]))
         self.hit_sound.set_volume(0.65)
         self.hack_panel_open = False
         self.esp_enabled = False
@@ -117,22 +127,21 @@ class Game:
         self.play_button_rect = pygame.FRect(0, 0, 220, 70)
         self.play_button_rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 +60)
 
-        self.shoot_sound = pygame.mixer.Sound(join('code', 'audio', 'shoot.wav'))
+        self.shoot_sound = pygame.mixer.Sound(join(*[p for p in [BASE, 'audio', 'shoot.ogg'] if p]))
         self.shoot_sound.set_volume(0.4)
-        self.impact_sound = pygame.mixer.Sound(join('code', 'audio', 'impact.ogg'))
-        self.music = pygame.mixer.Sound(join('code', 'audio', 'music.wav'))
+        self.impact_sound = pygame.mixer.Sound(join(*[p for p in [BASE, 'audio', 'impact.ogg'] if p]))
+        self.music = pygame.mixer.Sound(join(*[p for p in [BASE, 'audio', 'music.ogg'] if p]))
         self.music.play(loops= -1)
         self.music.set_volume(0.2)
-        self.load_images()
-        self.setup()
+        # loaded in run() to avoid blocking before async loop
 
     def load_images(self):
-        self.bullet_surf = pygame.image.load(join('code', 'images', 'weapon', 'bullet.png')).convert_alpha()
+        self.bullet_surf = pygame.image.load(join(*[p for p in [BASE, 'images', 'weapon', 'bullet.png'] if p])).convert_alpha()
 
-        folders = list(walk(join('code', 'images', 'enemies')))[0][1]
+        folders = list(walk(join(*[p for p in [BASE, 'images', 'enemies'] if p])))[0][1]
         self.enemy_frames = {}
         for folder in folders:
-            for folder_path, _, file_names in walk(join('code', 'images', 'enemies', folder)):
+            for folder_path, _, file_names in walk(join(*[p for p in [BASE, 'images', 'enemies', folder] if p])):
                 self.enemy_frames[folder] = []
                 for file_name in sorted(file_names, key = lambda name: int(name.split('.')[0])):
                     full_path = join(folder_path, file_name)
@@ -140,7 +149,7 @@ class Game:
                     self.enemy_frames[folder].append(surf)
 
         heart_scale = 0.05
-        heart_raw = pygame.image.load(join('code', 'images', 'player', 'heart.png')).convert_alpha()
+        heart_raw = pygame.image.load(join(*[p for p in [BASE, 'images', 'player', 'heart.png'] if p])).convert_alpha()
         size = (int(heart_raw.get_width() * heart_scale), int(heart_raw.get_height() * heart_scale))
         self.heart_surf = pygame.transform.smoothscale(heart_raw, size)
         self.heart_gray_surf = pygame.transform.grayscale(self.heart_surf)
@@ -162,7 +171,7 @@ class Game:
 
 
     def setup(self):
-        map = load_pygame(join('code', 'data', 'maps', 'world.tmx'))
+        map = load_pygame(join(*[p for p in [BASE, 'data', 'maps', 'world.tmx'] if p]))
 
         for x,y, image in map.get_layer_by_name('Ground').tiles():
             Sprite((x * TILE_SIZE,y * TILE_SIZE), image, self.all_sprites)
@@ -240,7 +249,6 @@ class Game:
         self.overlay_alpha = 0
         self.replay_button_rect = None
 
-        self.setup()
 
     def draw_button(self, rect, text, button_id):
         mouse_pos = pygame.mouse.get_pos()
@@ -413,6 +421,8 @@ class Game:
         self.draw_hack_button()
 
     async def run(self):
+        self.load_images()
+        self.setup()
         while self.running:
             dt = self.clock.tick() / 1000
             for event in pygame.event.get():
@@ -461,9 +471,11 @@ class Game:
                 self.player_collision()
 
             self.display_surface.fill('black')
-            self.all_sprites.draw(self.player.rect.center)
-            self.draw_heart()
-            self.draw_esp()
+            if hasattr(self, 'player'):
+                self.all_sprites.draw(self.player.rect.center)
+            if hasattr(self, 'player'):
+                self.draw_heart()
+                self.draw_esp()
 
             if self.game_started:
                 self.draw_score()
@@ -480,6 +492,7 @@ class Game:
             self.draw_hack_panel()
 
             pygame.display.update()
+            await asyncio.sleep(0)
 
         pygame.quit()
 
