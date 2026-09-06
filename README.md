@@ -8,6 +8,7 @@ I realized that I've never really made any games or projects that utilized the t
 Controls: WASD in order to move around and use your mouse to shoot
 
 AI Used: None
+Assets: PixilArt
 
 # Tech Slack
 - Frontend: Python
