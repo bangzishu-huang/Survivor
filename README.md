@@ -9,6 +9,7 @@ Controls: WASD in order to move around and use your mouse to shoot
 
 AI Used: None
 Assets: PixilArt
+Original Game Inspiration from Raven Cunanan
 
 # Tech Slack
 - Frontend: Python
