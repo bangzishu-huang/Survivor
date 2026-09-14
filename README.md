@@ -12,6 +12,12 @@ Assets: PixilArt
 
 Original Game Inspiration from Raven Cunanan
 
+# Uniqueness from Inspiration
+- Implementation of different levels of difficulty
+- 3 Heart system
+- Introduction of Hack Mode
+- Scoring system that is independent for each seperate level
+
 # Tech Slack
 - Frontend: Python
 - Hosting: GitHub Pages
